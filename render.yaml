@@ -1,0 +1,16 @@
+services:
+- type: web
+  name: crypto-alerts
+  env: python
+  plan: free
+  buildCommand: pip install -r requirements.txt
+  startCommand: python alerte_crypto_loop.py
+  envVars:
+  - key: TAAPI_KEY
+    sync: false
+  - key: TELEGRAM_TOKEN
+    sync: false
+  - key: CHAT_ID
+    sync: false
+  - key: INTERVALLE
+    sync: false
