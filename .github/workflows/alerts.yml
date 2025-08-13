@@ -2,7 +2,7 @@ name: Crypto Alerts (hourly)
 
 on:
   schedule:
-    - cron: "0 * * * *"  # Exécution toutes les heures pile
+    - cron: "*/15 * * * *"  # Exécution toutes les 15 minutes
   workflow_dispatch:     # Permet de le lancer manuellement depuis l'onglet Actions
 
 jobs:
