@@ -1,0 +1,29 @@
+name: Crypto Alerts (hourly)
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # Exécution toutes les heures pile
+  workflow_dispatch:     # Permet de le lancer manuellement depuis l'onglet Actions
+
+jobs:
+  run-alerts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run script
+        env:
+          TAAPI_KEY: ${{ secrets.TAAPI_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python alerte_crypto_once.py
