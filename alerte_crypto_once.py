@@ -27,6 +27,8 @@ def send_telegram(message: str):
         r = requests.post(url, data=payload, timeout=10)
         if r.status_code != 200:
             print(f"⚠️ Erreur envoi Telegram: {r.text}")
+        else:
+            print("✅ Message Telegram envoyé")
     except Exception as e:
         print(f"⚠️ Exception Telegram: {e}")
 
@@ -66,4 +68,23 @@ def get_rsi(symbol: str, interval="1w") -> float:
 def main():
     actifs = ["BTC", "ETH"]
     paliers = {
-        "BTC"
+        "BTC": [80000, 100000, 150000, 200000],
+        "ETH": [5000, 7500, 10000, 15000]
+    }  # ✅ dictionnaire correctement fermé
+
+    for actif in actifs:
+        try:
+            prix = get_price(actif)
+            rsi = get_rsi(actif)
+
+            print(f"{actif} → Prix: {prix}$ | RSI: {rsi}")
+
+            for palier in paliers[actif]:
+                if prix >= palier:
+                    send_telegram(f"🚀 {actif} a atteint {palier}$ (RSI: {rsi:.2f})")
+        except Exception as e:
+            send_telegram(f"❌ Erreur {actif} : {e}")
+            print(f"Erreur {actif} : {e}")
+
+if __name__ == "__main__":
+    main()
