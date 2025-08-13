@@ -1,31 +1,20 @@
-name: Crypto Alerts (every 15 min)
+name: Crypto Alerts
 
 on:
   schedule:
-    - cron: "*/15 * * * *"  # Exécution toutes les 15 minutes
-  workflow_dispatch:         # Permet de lancer manuellement pour tester
+    - cron: "*/15 * * * *"  # toutes les 15 minutes
+  workflow_dispatch:
 
 jobs:
-  run-alerts:
+  alert:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run script
+      - uses: actions/checkout@v3
+      - name: Run crypto alert
         env:
-          TAAPI_KEY: ${{ secrets.TAAPI_KEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-          INTERVALLE: 900
-        run: python alerte_crypto_once.py
+          TAAPI_KEY: ${{ secrets.TAAPI_KEY }}
+        run: python3 alerte_crypto_once.py
+
 
