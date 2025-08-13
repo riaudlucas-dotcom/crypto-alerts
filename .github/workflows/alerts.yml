@@ -1,9 +1,9 @@
-name: Crypto Alerts (hourly)
+name: Crypto Alerts (every 15 min)
 
 on:
   schedule:
     - cron: "*/15 * * * *"  # Exécution toutes les 15 minutes
-  workflow_dispatch:     # Permet de le lancer manuellement depuis l'onglet Actions
+  workflow_dispatch:         # Permet de lancer manuellement pour tester
 
 jobs:
   run-alerts:
@@ -26,4 +26,6 @@ jobs:
           TAAPI_KEY: ${{ secrets.TAAPI_KEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
+          INTERVALLE: 900
         run: python alerte_crypto_once.py
+
