@@ -68,8 +68,8 @@ def get_rsi(symbol: str, interval="1w") -> float:
 def main():
     actifs = ["BTC", "ETH"]
     paliers = {
-        "BTC": [80000, 100000, 150000, 200000],
-        "ETH": [5000, 7500, 10000, 15000]
+        "BTC": [130000, 150000, 180000, 200000],
+        "ETH": [6400, 8000, 10000, 12000]
     }  # ✅ dictionnaire correctement fermé
 
     for actif in actifs:
