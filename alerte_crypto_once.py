@@ -43,7 +43,27 @@ def get_price(symbol: str) -> float:
     url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids[symbol]}&vs_currencies=usd"
     data = requests.get(url, timeout=20).json()
 
-    try:
-        return data[ids[symbol]]["usd"]
-    except KeyError:
-        raise KeyError(f"Clé {id
+    if ids[symbol] not in data or "usd" not in data[ids[symbol]]:
+        raise KeyError(f"Clé '{ids[symbol]}' introuvable dans la réponse API : {data}")
+
+    return data[ids[symbol]]["usd"]
+
+def get_rsi(symbol: str, interval="1w") -> float:
+    """Récupère le RSI depuis TAAPI.io."""
+    url = (
+        f"https://api.taapi.io/rsi"
+        f"?secret={TAAPI_KEY}"
+        f"&exchange=binance"
+        f"&symbol={symbol.upper()}/USDT"
+        f"&interval={interval}"
+    )
+    data = requests.get(url, timeout=20).json()
+    if "value" not in data:
+        raise ValueError(f"Erreur TAAPI.io: {data}")
+    return data["value"]
+
+# === Script principal ===
+def main():
+    actifs = ["BTC", "ETH"]
+    paliers = {
+        "BTC"
