@@ -1,7 +1,6 @@
 import os
 import requests
 import sys
-import time
 
 # === Récupération des secrets depuis GitHub Actions ===
 TAAPI_KEY = os.getenv("TAAPI_KEY")
@@ -33,79 +32,65 @@ def send_telegram(message: str):
     except Exception as e:
         print(f"⚠️ Exception Telegram: {e}")
 
-def get_price(symbol: str) -> float:
-    """Récupère le prix en USD depuis CoinGecko."""
-    ids = {"BTC": "bitcoin", "ETH": "ethereum"}
-    symbol = symbol.upper()
-    if symbol not in ids:
-        raise ValueError(f"Symbole non supporté: {symbol}")
-    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids[symbol]}&vs_currencies=usd"
+def get_bulk_rsi():
+    """Récupère en un seul appel le RSI de BTC et ETH via TAAPI.io."""
+    url = (
+        f"https://api.taapi.io/bulk"
+        f"?secret={TAAPI_KEY}"
+        f"&construct="
+        f"[{{'exchange':'binance','symbol':'BTC/USDT','interval':'1w','indicator':'rsi'}},"
+        f"{{'exchange':'binance','symbol':'ETH/USDT','interval':'1w','indicator':'rsi'}}]"
+    )
     data = requests.get(url, timeout=20).json()
-    if ids[symbol] not in data or "usd" not in data[ids[symbol]]:
-        raise KeyError(f"Clé '{ids[symbol]}' introuvable dans la réponse API : {data}")
-    return data[ids[symbol]]["usd"]
+    if not isinstance(data, list) or len(data) < 2:
+        raise ValueError(f"Réponse TAAPI.io invalide : {data}")
+    return data
 
-# === Nouvelle fonction RSI groupé avec cache ===
-RSI_CACHE = {}
-CACHE_DURATION = 900  # 15 minutes
-
-def get_rsi_bulk(symbols, interval="1h"):
-    """Récupère le RSI pour plusieurs symboles en une seule requête."""
-    now = time.time()
-    result = {}
-    need_call = any(sym not in RSI_CACHE or now - RSI_CACHE[sym]["time"] > CACHE_DURATION for sym in symbols)
-    
-    if not need_call:
-        for sym in symbols:
-            result[sym] = RSI_CACHE[sym]["rsi"]
-        return result
-
-    # Requête groupée TAAPI.io
-    url = "https://api.taapi.io/bulk"
-    params = {
-        "secret": TAAPI_KEY,
-        "symbols": ",".join([f"{sym.upper()}/USDT" for sym in symbols]),
-        "indicators": "rsi",
-        "interval": interval,
-        "exchange": "binance"
-    }
-    try:
-        data = requests.get(url, params=params, timeout=20).json()
-        for sym in symbols:
-            key = f"{sym.upper()}/USDT"
-            rsi_value = data.get(key, {}).get("rsi", None)
-            if rsi_value is not None:
-                RSI_CACHE[sym] = {"rsi": rsi_value, "time": now}
-                result[sym] = rsi_value
-            else:
-                result[sym] = f"Erreur TAAPI.io: {data.get(key, 'Pas de données')}"
-    except Exception as e:
-        for sym in symbols:
-            result[sym] = f"Erreur TAAPI.io: {e}"
-    return result
+def get_prices():
+    """Récupère en un seul appel le prix BTC et ETH depuis CoinGecko."""
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd"
+    data = requests.get(url, timeout=20).json()
+    if "bitcoin" not in data or "ethereum" not in data:
+        raise KeyError(f"Réponse CoinGecko invalide : {data}")
+    return data["bitcoin"]["usd"], data["ethereum"]["usd"]
 
 # === Script principal ===
 def main():
-    actifs = ["BTC", "ETH"]
     paliers = {
         "BTC": [130000, 150000, 180000, 200000],
         "ETH": [6400, 8000, 10000, 12000]
     }
 
+    # 1️⃣ Un seul appel API TAAPI.io pour RSI BTC et ETH
     try:
-        prices = {sym: get_price(sym) for sym in actifs}
-        rsis = get_rsi_bulk(actifs)
+        rsi_data = get_bulk_rsi()
+        rsi_btc = rsi_data[0].get("result", {}).get("value")
+        rsi_eth = rsi_data[1].get("result", {}).get("value")
     except Exception as e:
-        send_telegram(f"❌ Erreur récupération prix/RSI: {e}")
+        send_telegram(f"❌ Erreur récupération RSI : {e}")
         return
 
-    for actif in actifs:
-        prix = prices[actif]
-        rsi = rsis[actif]
-        print(f"{actif} → Prix: {prix}$ | RSI: {rsi}")
-        for palier in paliers[actif]:
-            if prix >= palier:
-                send_telegram(f"🚀 {actif} a atteint {palier}$ (RSI: {rsi})")
+    # 2️⃣ Un seul appel API CoinGecko pour prix BTC et ETH
+    try:
+        prix_btc, prix_eth = get_prices()
+    except Exception as e:
+        send_telegram(f"❌ Erreur récupération prix : {e}")
+        return
+
+    # 3️⃣ Vérification des paliers
+    actifs = [
+        ("BTC", prix_btc, rsi_btc),
+        ("ETH", prix_eth, rsi_eth)
+    ]
+
+    for actif, prix, rsi in actifs:
+        try:
+            print(f"{actif} → Prix: {prix}$ | RSI: {rsi}")
+            for palier in paliers[actif]:
+                if prix >= palier:
+                    send_telegram(f"🚀 {actif} a atteint {palier}$ (RSI: {rsi:.2f})")
+        except Exception as e:
+            send_telegram(f"❌ Erreur {actif} : {e}")
 
 if __name__ == "__main__":
     main()
