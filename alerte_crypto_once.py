@@ -1,14 +1,13 @@
 import os
 import requests
 import sys
-import json
-import urllib.parse
 
-# === Récupération des secrets ===
+# === Récupération des secrets depuis GitHub Actions ===
 TAAPI_KEY = os.getenv("TAAPI_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+# Vérification des variables essentielles
 missing = [var for var, value in {
     "TAAPI_KEY": TAAPI_KEY,
     "TELEGRAM_TOKEN": TELEGRAM_TOKEN,
@@ -21,7 +20,7 @@ if missing:
 
 # === Fonctions ===
 def send_telegram(message: str):
-    """Envoie un message Telegram"""
+    """Envoie un message Telegram via Bot API."""
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": CHAT_ID, "text": message}
@@ -33,67 +32,72 @@ def send_telegram(message: str):
     except Exception as e:
         print(f"⚠️ Exception Telegram: {e}")
 
-def get_bulk_rsi():
-    """Récupère RSI BTC et ETH en un seul appel via TAAPI.io Bulk"""
-    construct_payload = {
-        "indicators": [
-            {"indicator": "rsi", "exchange": "binance", "symbol": "BTC/USDT", "interval": "1w"},
-            {"indicator": "rsi", "exchange": "binance", "symbol": "ETH/USDT", "interval": "1w"}
-        ]
+def get_prices(symbols):
+    """Récupère les prix de plusieurs actifs depuis CoinGecko en un seul appel."""
+    ids_map = {
+        "BTC": "bitcoin",
+        "ETH": "ethereum"
     }
-    encoded = urllib.parse.quote(json.dumps(construct_payload))
-    url = f"https://api.taapi.io/bulk?secret={TAAPI_KEY}&construct={encoded}"
-
+    ids_str = ",".join(ids_map[s] for s in symbols)
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd"
     data = requests.get(url, timeout=20).json()
-    if not isinstance(data, dict) or "data" not in data:
-        raise ValueError(f"Réponse TAAPI.io invalide : {data}")
-    return data["data"]
+    prices = {sym: data[ids_map[sym]]["usd"] for sym in symbols}
+    return prices
 
-def get_prices():
-    """Récupère prix BTC et ETH depuis CoinGecko"""
-    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd"
-    data = requests.get(url, timeout=20).json()
-    if "bitcoin" not in data or "ethereum" not in data:
-        raise KeyError(f"Réponse CoinGecko invalide : {data}")
-    return data["bitcoin"]["usd"], data["ethereum"]["usd"]
+def get_bulk_rsi(symbols, interval="1w"):
+    """Récupère le RSI de plusieurs actifs via TAAPI.io en un seul appel."""
+    url = f"https://api.taapi.io/bulk?secret={TAAPI_KEY}"
+    indicators_payload = [
+        {"indicator": "rsi", "exchange": "binance", "symbol": f"{sym}/USDT", "interval": interval}
+        for sym in symbols
+    ]
+    payload = {"indicators": indicators_payload}
+
+    r = requests.post(url, json=payload, timeout=20)
+    data = r.json()
+
+    if "errors" in data:
+        raise ValueError(f"Erreur TAAPI.io: {data}")
+
+    # TAAPI renvoie une liste de résultats dans "data"
+    rsi_values = {}
+    for result in data.get("data", []):
+        symbol = result.get("result", {}).get("symbol", "")
+        value = result.get("result", {}).get("value", None)
+        if symbol and value is not None:
+            rsi_values[symbol.replace("/USDT", "")] = value
+
+    return rsi_values
 
 # === Script principal ===
 def main():
+    actifs = ["BTC", "ETH"]
     paliers = {
         "BTC": [130000, 150000, 180000, 200000],
         "ETH": [6400, 8000, 10000, 12000]
     }
 
-    # 1️⃣ Récupération RSI
     try:
-        rsi_data = get_bulk_rsi()
-        rsi_btc = rsi_data[0]["result"]["value"]
-        rsi_eth = rsi_data[1]["result"]["value"]
-    except Exception as e:
-        send_telegram(f"❌ Erreur récupération RSI : {e}")
-        return
+        prix_actuels = get_prices(actifs)
+        rsi_actuels = get_bulk_rsi(actifs)
 
-    # 2️⃣ Récupération prix
-    try:
-        prix_btc, prix_eth = get_prices()
-    except Exception as e:
-        send_telegram(f"❌ Erreur récupération prix : {e}")
-        return
+        for actif in actifs:
+            prix = prix_actuels.get(actif)
+            rsi = rsi_actuels.get(actif)
 
-    # 3️⃣ Vérification paliers
-    actifs = [
-        ("BTC", prix_btc, rsi_btc),
-        ("ETH", prix_eth, rsi_eth)
-    ]
-
-    for actif, prix, rsi in actifs:
-        try:
             print(f"{actif} → Prix: {prix}$ | RSI: {rsi}")
+
+            if prix is None or rsi is None:
+                send_telegram(f"⚠️ Données manquantes pour {actif}")
+                continue
+
             for palier in paliers[actif]:
                 if prix >= palier:
                     send_telegram(f"🚀 {actif} a atteint {palier}$ (RSI: {rsi:.2f})")
-        except Exception as e:
-            send_telegram(f"❌ Erreur {actif} : {e}")
+
+    except Exception as e:
+        send_telegram(f"❌ Erreur récupération données : {e}")
+        print(f"Erreur : {e}")
 
 if __name__ == "__main__":
     main()
