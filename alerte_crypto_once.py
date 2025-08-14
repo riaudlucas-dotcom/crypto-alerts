@@ -1,6 +1,8 @@
 import os
 import requests
 import sys
+import json
+import urllib.parse
 
 # === Récupération des secrets depuis GitHub Actions ===
 TAAPI_KEY = os.getenv("TAAPI_KEY")
@@ -34,13 +36,13 @@ def send_telegram(message: str):
 
 def get_bulk_rsi():
     """Récupère en un seul appel le RSI de BTC et ETH via TAAPI.io."""
-    url = (
-        f"https://api.taapi.io/bulk"
-        f"?secret={TAAPI_KEY}"
-        f"&construct="
-        f"[{{'exchange':'binance','symbol':'BTC/USDT','interval':'1w','indicator':'rsi'}},"
-        f"{{'exchange':'binance','symbol':'ETH/USDT','interval':'1w','indicator':'rsi'}}]"
-    )
+    bulk_query = [
+        {"exchange": "binance", "symbol": "BTC/USDT", "interval": "1w", "indicator": "rsi"},
+        {"exchange": "binance", "symbol": "ETH/USDT", "interval": "1w", "indicator": "rsi"}
+    ]
+    encoded_query = urllib.parse.quote(json.dumps(bulk_query))
+    url = f"https://api.taapi.io/bulk?secret={TAAPI_KEY}&construct={encoded_query}"
+
     data = requests.get(url, timeout=20).json()
     if not isinstance(data, list) or len(data) < 2:
         raise ValueError(f"Réponse TAAPI.io invalide : {data}")
