@@ -1,6 +1,7 @@
 import os
 import requests
 import sys
+import time
 
 # === Récupération des secrets depuis GitHub Actions ===
 TAAPI_KEY = os.getenv("TAAPI_KEY")
@@ -61,7 +62,7 @@ def get_rsi(symbol: str, interval="1w") -> float:
     )
     try:
         data = requests.get(url, timeout=20).json()
-        print(f"DEBUG TAAPI {symbol} → {data}")  # Debug pour voir la réponse
+        print(f"DEBUG TAAPI {symbol} → {data}")  # Debug pour voir la réponse brute
         if "value" in data:
             return data["value"]
         else:
@@ -78,7 +79,7 @@ def main():
         "ETH": [6400, 8000, 10000, 12000]
     }
 
-    for actif in actifs:
+    for i, actif in enumerate(actifs):
         try:
             prix = get_price(actif)
             rsi = get_rsi(actif)
@@ -91,6 +92,12 @@ def main():
             for palier in paliers[actif]:
                 if prix >= palier:
                     send_telegram(f"🚀 {actif} a atteint {palier}$ (RSI: {rsi if rsi is not None else 'N/A'})")
+
+            # ⏳ Attente obligatoire entre deux appels API (plan gratuit)
+            if i < len(actifs) - 1:
+                print("⏳ Attente 16 secondes pour respecter la limite TAAPI...")
+                time.sleep(16)
+
         except Exception as e:
             send_telegram(f"❌ Erreur {actif} : {e}")
             print(f"Erreur {actif} : {e}")
