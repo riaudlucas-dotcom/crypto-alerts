@@ -1,11 +1,12 @@
-name: Crypto Alerts
+#
+#name: Crypto Alerts
 
-on:
-  schedule:
-    - cron: "*/15 * * * *"  # toutes les 15 minutes
-  workflow_dispatch:
+#on:
+  #schedule:
+    #- cron: "*/15 * * * *"  # toutes les 15 minutes
+ # workflow_dispatch:
 
-jobs:
+#jobs:
   alert:
     runs-on: ubuntu-latest
     steps:
@@ -17,4 +18,4 @@ jobs:
           TAAPI_KEY: ${{ secrets.TAAPI_KEY }}
         run: python3 alerte_crypto_once.py
 
-
+#
